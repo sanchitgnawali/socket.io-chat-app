@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Simple Chatroom With SocketIO</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+</head>
+<body>
+    <div id="app">
+        <div class="container mt-5">
+
+                <div v-if="ready">
+                    <p v-for="inf in info" class="alert alert-warning">
+                        {{inf.user}} {{inf.type}}
+                    </p>        
+                </div>
+
+                <div v-if="!ready">
+                    <h4>Enter Your Name Here</h4>
+                    <form @submit.prevent="addName">
+                        <div class="form-group row">
+                            <input 
+                                type="text" 
+                                class="form-control col-9" 
+                                id="exampleInputEmail1" 
+                                placeholder="Enter your Name"
+                                v-model="name"/>
+                            <input type="submit" class="btn btn-sm ml-2 btn-primary">
+                        </div>
+                        
+                    </form>
+                </div>
+                
+                
+                <div class="card bg-success" v-else>
+                    
+                    <div class="card-header text-white">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                Simple Chat Room
+                            </div>
+                            <div class="col-sm-6 text-right">
+                                {{this.name}}
+                            </div>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item" v-for="(message, index) in messages" :key="index" style="border: none">
+                            
+                            
+                            <div :class="{'float-right': message.type === 0,'float-left': message.type === 1,'alert alert-success': message.type === 0,'alert alert-primary': message.type === 1}">
+                                <p v-show="message.type === 1" style="font-size: 9px; margin: 0px;">{{message.user}}</p>                                
+                                    {{message.message}}
+                            </div>
+                            
+                        </li>
+                    </ul>
+
+                    <div class="card-body">
+                            <form @submit.prevent="send">
+                                <div class="form-group">
+                                    <input 
+                                        type="text" 
+                                        class="form-control" 
+                                        id="exampleInputEmail1" 
+                                        placeholder="Enter your message"
+                                        v-model="newmessage">
+                                </div>
+                            </form>
+                            <div class="row text-center">
+                                <small v-if="typing">Someone is typing....</small>
+                            </div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.js" integrity="sha256-ufGElb3TnOtzl5E4c/qQnZFGP+FYEZj5kbSEdJNrw0A=" crossorigin="anonymous"></script>
+    <script>
+        var socket = io();
+
+
+        let app = new Vue({
+            el: '#app',
+            data: {
+                newmessage:null,
+                messages:[],
+                typing: false,
+                name: null,
+                ready: false,
+                info: []
+            },
+            methods: {
+              send() {
+                  this.messages.push({message:this.newmessage,type:0,user: this.name});
+                  socket.emit('chat-message',{message: this.newmessage,user: this.name});
+                  this.newmessage = null;
+              },
+              addName() {
+                  this.ready = true;
+                  socket.emit('joined',this.name);
+              }  
+            },
+            created() {
+                window.onbeforeunload = () => {
+                    socket.emit('left',this.name);
+                }
+                socket.emit('created','Sanchit');
+
+                socket.on('created',(data)=>{
+                    console.log(data);
+                });
+
+                socket.on('chat-message',(data)=>{
+                    this.messages.push({message: data.message,type: 1,user: data.user});
+                });
+                
+                socket.on('typing',data =>{
+                    this.typing = true;
+                });
+                socket.on('stoppedTyping',data =>{
+                    this.typing = false;
+                });
+
+                socket.on('joined',(data)=>{
+                    this.info.push({user: data, type: "joined"});
+                    setTimeout(() => {
+                        this.info = [];
+                    }, 3000);
+                });
+                socket.on('left',(data)=>{
+                    this.info.push({user: data, type: "left"});
+                    setTimeout(()=>{
+                        this.info=[];
+                    },3000);
+                });
+                
+            },
+            watch: {
+                newmessage(value)  {
+                    value ? socket.emit('typing') : socket.emit('stoppedTyping');
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
